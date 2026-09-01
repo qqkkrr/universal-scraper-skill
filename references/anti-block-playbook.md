@@ -7,6 +7,7 @@
 | 症状（看 fetch 侦察结果） | 判型 | 起手级 |
 |---|---|---|
 | 200 且内容齐全在 HTML 里 | 直接可抓 | L0 |
+| 页面是 JS 应用（有界面壳、数据靠 XHR 拼，如 EUIPO eSearch） | SPA 应用 | **接口捕获（capture_all）优先**，浏览器只留交互 |
 | 403 / 412 / 468 / 503，或正常 UA 也被拒 | WAF 指纹拦截 | L1 |
 | 200 但 body 极短（<2KB），含 `document.location`、`document.write`、`stoken`、`__js_challenge`、`setTimeout(...location...)` 之类脚本壳 | JS 挑战壳 | L1 → L2 |
 | 返回验证码图片 / 滑块 / 点选 | 验证码 | L2 + 识别，失败 L4 |
@@ -72,6 +73,15 @@
 | 小红书评论 | SPA 签名接口 | 浏览器方案 + `record_from: capture` 捕获响应 |
 | magtech 期刊系统 | 常规 | `journal` 精配批量下载 PDF |
 | 抖音话题视频 | 强 JS 壳 + 签名 | 仅浏览器可读部分可见数据；抓不全时如实说明并 L5 |
+| EUIPO eSearch plus | 13KB JS 应用壳，直抓无数据；后端 API 基座活跃（/eSearch/api 返回 200） | 先 capture_all 捕获检索/详情接口 → JSON 直抓；浏览器只留交互（配方 R13） |
+
+**两条先查表再动手的经验**（能省一个数量级的功夫）：
+
+1. **"某天公布的全部 X"** → 先找官方公报/Gazette/Bulletin（EUIPO Trade Marks
+   Bulletin 周刊、商标公告、招标公告）。公报是官方设计给人按期浏览的入口，
+   别逐个实体硬查（配方 R14）。
+2. **"某实体的程序/状态记录"**（商标异议、案件进展）→ 官方检索页多半是 SPA，
+   第一手动作是 capture_all 找详情接口，而不是渲染 UI（配方 R13）。
 
 ## 六、0 结果诊断报告（固定结构）
 

@@ -142,6 +142,37 @@ monitor  --task <任务包目录> --every 300 --key url
 再不通走 CDP（L3）与人工关卡（L4）；全灭 → L5 人工通道。
 每一级都只改配置、不换工具，用户无感知，只听你播报。
 
+## R13 · 知识产权程序记录（EUIPO / WIPO / 国知局等，商标·专利·外观通用）
+
+典型任务："抓某商标的异议（opposition）、无效（invalidity）程序记录"。
+官方检索入口几乎都是 JS 应用（EUIPO eSearch plus 实测：页面是 13KB 的 JS 壳，
+直抓无数据，但后端 API 基座是活的）。打法按顺序：
+
+1. **第一手永远是接口捕获，不是浏览器啃 UI**：
+   browser 型 + `"capture": true` 小跑一页搜索 → 读 `capture_all.json`
+   → 找出检索接口和详情接口的 URL、参数、返回结构。
+2. **接口能直连** → 改写 http_json 配置：`records_path` 指向结果列表，
+   字段从 JSON 键映射；程序记录（Legal events / Opposition / Cancellation /
+   Invalidity）通常在详情接口的独立数组里，抓详情接口即可。
+3. **接口带签名/加密参数** → 不逆向（红线），保持 capture 模式用浏览器取数，
+   或走 CDP 登录态（L3）。
+4. **实体定位**：问用户要任一标识——EUTM 注册号（018xxxxxx 格式）/ 商标名称 /
+   申请人；有注册号最稳。
+5. 浏览器兜底时的搜索 → 详情 drill-down：`actions` 填搜索框 + 提交 +
+   `wait` 等结果 + `row_css` 取列表，详情抽取用 detail 段（同 R4）。
+
+## R14 · 官方公报 / Gazette 按日期路线
+
+适用："某天/某期公布的全部 X"（新商标公告、异议无效决定、企业处罚、招标公告）。
+**先找官方公报再动手**——公报是官方设计出来按期浏览的入口，比逐个实体查快一个数量级：
+
+1. 找公报归档页（如 EUIPO 的 Trade Marks Bulletin 周刊、中国商标公告、
+   各级政府采购公告），通常按"年 → 期次/日期"两级列表。
+2. 用 R1/R2 抓期次索引 → 得到每期 PDF/HTML 链接。
+3. PDF 批量下载后用内建抽取（pdfminer/pdfplumber）转文本，按关键词/日期过滤。
+4. EUIPO 提示：Trade Marks Bulletin 每周一期，异议/无效决定都在对应期次里，
+   覆盖"2025-09-20 当天公布"这类需求就靠它，而不是逐个商标查。
+
 ## 交付前必做
 
 ```bash
