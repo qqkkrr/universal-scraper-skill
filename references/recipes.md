@@ -151,6 +151,11 @@ monitor  --task <任务包目录> --every 300 --key url
 1. **第一手永远是接口捕获，不是浏览器啃 UI**：
    browser 型 + `"capture": true` 小跑一页搜索 → 读 `capture_all.json`
    → 找出检索接口和详情接口的 URL、参数、返回结构。
+   ⚠️ EUIPO 实测：**capture 只录 run 生命周期内的响应，SPA 的数据 XHR 常在加载后
+   异步触发**——必须配 actions 等待才有货，否则只捕到配置/认证类响应：
+   ```json
+   "actions": [{"type": "wait", "ms": 10000}]
+   ```
 2. **接口能直连** → 改写 http_json 配置：`records_path` 指向结果列表，
    字段从 JSON 键映射；程序记录（Legal events / Opposition / Cancellation /
    Invalidity）通常在详情接口的独立数组里，抓详情接口即可。

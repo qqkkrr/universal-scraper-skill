@@ -400,7 +400,11 @@ class BrowserFetcher(BaseFetcher):
             "pagination": self.source.get("pagination", {"type": "none"}),
             "captcha": self.source.get("captcha"),
             "slider": self.source.get("slider"),
-            "capture": self.source.get("capture"),
+            # capture 契约：布尔 true=全捕获（翻译成桥的 capture_all）；列表=声明式捕获。
+            # 绝不能把布尔原样传给 spec.capture——桥会迭代它导致 TypeError 崩溃。
+            "capture": (self.source.get("capture")
+                        if isinstance(self.source.get("capture"), list) else None),
+            "capture_all": self.source.get("capture") is True,
             "login": self.source.get("login"),
             "verify": self.source.get("verify"),
         }
@@ -484,7 +488,10 @@ class BrowserFetcher(BaseFetcher):
                     proc.terminate(); die(f"浏览器错误: {obj.get('message')}")
             rc, err = _wait_bridge(proc, errbuf)
             if rc != 0:
-                die(f"浏览器桥退出码 {rc}: {err[-400:]}")
+                # 报错保留首行（真正的异常类型常在头部）+ 尾部，避免截断导致误诊
+                _lines = [l for l in err.strip().splitlines() if l.strip()]
+                _head = _lines[0][:220] if _lines else ""
+                die(f"浏览器桥退出码 {rc}: 首行[{_head}] 尾部[{err[-300:]}]")
             # 记录来源 = 网络捕获（SPA 签名接口，如小红书评论）
             if self.source.get("record_from") == "capture":
                 records = self._records_from_capture(out_dir)

@@ -672,7 +672,10 @@ class BrowserFetcher(BaseFetcher):
             "login": self.config.get("login"),
             "verify": self.config.get("verify"),
             "fingerprint": self.config.get("fingerprint"),
-            "capture": self.config.get("capture"),
+            # capture 契约：布尔 true=全捕获（翻译成桥的 capture_all）；列表=声明式捕获
+            "capture": (self.config.get("capture")
+                        if isinstance(self.config.get("capture"), list) else None),
+            "capture_all": self.config.get("capture") is True,
         }
         wait_sel = self.config.get("wait_selector")
         wait_to = int(self.config.get("wait_timeout") or 30000)

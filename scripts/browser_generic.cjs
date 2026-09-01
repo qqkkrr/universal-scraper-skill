@@ -318,10 +318,11 @@ function centerCaptcha(page) {
     });
 
     // 网络捕获：拦截 SPA 自己发出的签名 API（不逆向签名）
-    const captures = spec.capture || [];
+    // capture 契约：数组=声明式捕获；true(布尔)=全捕获（配置常传布尔，绝不能迭代它）
+    const captures = Array.isArray(spec.capture) ? spec.capture : [];
     const capturedBy = {};
     // capture_all：把页面上所有 JSON 响应都存下来（不知道接口名也能事后挖数据）
-    const captureAll = !!spec.capture_all;
+    const captureAll = !!spec.capture_all || spec.capture === true;
     const capturedAll = [];
     page.on("response", async (res) => {
       const u = res.url();
