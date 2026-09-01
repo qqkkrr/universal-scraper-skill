@@ -248,7 +248,8 @@ def wait_for_answer_file(answer_file: Path, timeout: int = 300) -> Optional[str]
 # 供 HttpClient/引擎在拿到响应后判断是否要 换代理 / 换 UA / 升级浏览器 / 重试。
 
 BLOCK_PATTERNS = [
-    ("cloudflare", re.compile(r"cf-challenge|cf_clearance|just a moment|cloudflare|__cf_chl|challenges\.cloudflare", re.I)),
+    # 注意：不能用裸词 cloudflare 判拦截——大量站点内容页正常提及该词（技术博客/云厂商文档）
+    ("cloudflare", re.compile(r"cf-challenge|cf_clearance|just a moment|__cf_chl|challenges\.cloudflare\.com|checking your browser", re.I)),
     # CWAP/WZWS 滑块 WAF（期刊/政务站常见）：必须排在 verify 前，命中即判为 waf
     ("waf", re.compile(r"wzws-waf-cgi|CWAP-waf|waf_slider_verify|wzws_waf|waf-cgi|WZWS-RAY|滑动填|请完成安全验证|向右滑动|拖动滑块|拼图完成", re.I)),
     ("verify", re.compile(r"验证中心|安全验证|滑动验证|点选验证|人机验证|拼图验证|spiderindefence|访问过于频繁|异常访问|请求过于频繁|操作频繁|安全检测", re.I)),
@@ -277,10 +278,12 @@ def detect_block(status: int = 200, text: str = "", headers: Optional[Dict[str, 
         return {"kind": STATUS_BLOCK[status], "detail": f"HTTP {status}", "status": status}
     if status >= 400:
         return {"kind": "http_error", "detail": f"HTTP {status}", "status": status}
-    # 2) 头部特征（Cloudflare 等）
-    for key in ("cf-ray", "cf-chl", "cf-cache-status"):
-        if key in h:
-            return {"kind": "cloudflare", "detail": f"header {key}", "status": status}
+    # 2) 头部特征：cf-* 头在 Cloudflare CDN 透传的正常 200（DockerHub/V2EX 等）上同样存在，
+    #    只有"200 但内容极小"（真挑战页特征）才判拦截，否则误杀正常站
+    if any(key in h for key in ("cf-ray", "cf-chl", "cf-cache-status")):
+        if len((text or "").strip()) < 2048:
+            return {"kind": "cloudflare", "detail": "header cf-* + tiny body", "status": status}
+        return {"kind": "none", "detail": "cdn passthrough", "status": status}
     # 3) 正文特征（只在前 20KB 匹配，避免全文误判）
     t = (text or "")[:20000].lower()
     if not t:
