@@ -178,6 +178,30 @@ monitor  --task <任务包目录> --every 300 --key url
 4. EUIPO 提示：Trade Marks Bulletin 每周一期，异议/无效决定都在对应期次里，
    覆盖"2025-09-20 当天公布"这类需求就靠它，而不是逐个商标查。
 
+## R15 · 东方财富股吧（历史日期采集 SOP，强风控站点通用打法）
+
+典型任务："抓某股吧某天的发帖标题、阅读量、评论数"。股吧是 SSR：数据就嵌在
+页面 `<script>` 的 `window.article_list` 里，且历史翻页直接是 URL 页码参数。
+按顺序走：
+
+1. **侦察判型**：`fetch <吧URL>` → HTML 里有 `article_list` → 判为内嵌 JSON 页。
+2. **身份核实墙**（em_capt）：HTTP 批量抓会触发"身份核实"并下发
+   `wsc_checkuser_ok`/`st_psi` cookie。正路过法：`open-debug-chrome.sh` 弹调试
+   Chrome → 用户完成一次核实 → CDP 附加（L3）。
+3. **取数**：browser 型 + `"embedded_json": "window.article_list"`，
+   `record.fields` 从记录键映射（title/read/comment 等）。
+4. **历史回溯**：URL 直接指向目标页码（深链），配
+   `"pagination": {"strategy": "none", "start": <目标页>, "max_pages": <目标页>}`，
+   逐页点击"下一页"或逐个深链导航，**不要 HTTP 批量并发**（见下）。
+5. **日期口径**：pipeline 里 regex 前缀过滤当天：
+   `{"type": "filter", "field": "post_publish_time", "op": "regex", "pattern": "^2025-09-01"}`。
+6. **断点续传**：需要可续跑的长回溯用 v3 任务包（`run --task --resume`，增量去重
+   天然防重复）；v2 config 的 `--resume` 只覆盖详情阶段。
+
+⚠️ **请求预算红线**：股吧类站点验证 cookie 有请求预算（实测约 140 次/会话），
+HTTP 批量爆发不仅自身被封，还会**反噬正在工作的浏览器会话**（IP 连坐）。
+历史采集全程用浏览器导航，克制、单线程、必要时分时段。
+
 ## 交付前必做
 
 ```bash

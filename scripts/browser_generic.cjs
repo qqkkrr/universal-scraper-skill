@@ -167,6 +167,7 @@ async function main() {
   const captchaDir = arg("captchaDir", null);
   const captchaTimeout = parseInt(arg("captchaTimeout", "300000"), 10);
   const maxPages = parseInt(arg("maxPages", "100"), 10);
+  const startPage = parseInt(arg("startPage", "1"), 10);
   const settle = parseInt(arg("settle", "1500"), 10);
 
   const spec = JSON.parse(fs.readFileSync(specFile, "utf-8"));
@@ -642,7 +643,8 @@ function centerCaptcha(page) {
     }
 
     let pagesDone = 0;
-    for (let p = 1; p <= maxPages; p++) {
+    // startPage：定向分页（配深链 URL 使用，如列表第 1161 页）——页号从 startPage 计
+    for (let p = startPage; p <= maxPages; p++) {
       // 验证码/滑块处理
       if (captchaDir && (spec.captcha || spec.slider)) {
         const ok = await handleCaptcha(page, spec, captchaDir, captchaTimeout);

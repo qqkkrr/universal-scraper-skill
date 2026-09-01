@@ -43,6 +43,17 @@
 URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不要写进 URL**——
 翻页由 pagination 策略负责（查询参数自动追加，或跟随"下一页"链接）。
 
+**内嵌 JSON 页面**（SSR 把数据放在 `<script>` 里，如股吧的 `window.article_list`）：
+不用 CSS 选择器，直接声明变量引用即可拿到结构化记录（module 作用域的
+`const/let/var X` 也能识别）：
+
+```json
+"embedded_json": "window.article_list"
+```
+
+或变量值是字典时用 `path` 下钻：`{"var": "window.g_data", "path": "list"}`。
+只支持 JSON 兼容字面量（容忍尾逗号）；提取到的每条记录走 `record.fields` 映射。
+
 **http_json** — 接口返回 JSON：
 
 ```json
@@ -107,6 +118,9 @@ URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不�
 
 - `page_param`：把页码追加为查询参数（`?page=2`）。`records_path`/`total_path`
   仅 http_json 用（点分隔路径）。
+- `start`：**起始页号**（定向分页/历史回溯的关键）。`{"start": 1161, "max_pages": 1200}`
+  从第 1161 页抓到第 1200 页。HTTP 路径直接生效；browser 路径通过深链 URL 配合
+  （URL 本身指向起始页），桥从该页号开始计数。
 - `offset`：`{"strategy":"offset","offset_param":"offset","limit":20,"max_pages":50}`，
   按 `(页-1)*limit` 递增。
 - `next_url`：路径式翻页（`/page/2/`）用这个——解析每页"下一页"链接并跟随，
@@ -120,8 +134,30 @@ URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不�
 
 ## record.fields
 
-`{"输出列名": {"from": "来源字段名"}}`。来源字段来自 source.fields 的键或 JSON 的键。
-可加清洗管道到 `pipeline`。
+`{"输出列名": {"from": "来源字段名"}}`。来源字段来自 source.fields 的键、JSON 的键
+或 embedded_json 的记录键。
+
+## pipeline（记录清洗与过滤——按日期/条件筛选就在这里）
+
+`pipeline` 是记录级处理步骤数组，抓完每页就执行。五种步骤：
+
+```json
+[
+  {"type": "filter", "field": "post_publish_time", "op": "regex", "pattern": "^2025-09-01"},
+  {"type": "filter", "field": "阅读", "op": "between", "min": 1000},
+  {"type": "dedup", "key": ["标题", "作者"]},
+  {"type": "rename", "mapping": {"cmt": "评论数"}},
+  {"type": "cast", "field": "阅读", "to": "int"},
+  {"type": "add", "field": "来源", "value": "guba"}
+]
+```
+
+- `filter` 五种操作符：`contains`（默认）/ `eq` / `regex`（`pattern`）/ `not_contains` /
+  `between`（数值区间，`min`/`max`，自动去千分位逗号）。**日期筛选用 regex 前缀匹配
+  即可**（`^2025-09-01` 匹配当天全部时间戳）。
+- `dedup`：按 `key`（单字段或字段数组）去重。
+- `rename`：`mapping` 字典批量改列名；`cast`：`to` 取 int/float/str（自动去千分位）；
+  `add`：`field`+`value` 加常量列。
 
 ## detail（列表 → 详情两级）
 

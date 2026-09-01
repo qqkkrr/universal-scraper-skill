@@ -243,7 +243,11 @@ class HttpFetcher(BaseFetcher):
                     break
                 page += 1
             else:  # http_html
-                rows = self._extract_html_rows(text)
+                if self.source.get("embedded_json"):
+                    from .selectors import extract_embedded_json_rows
+                    rows = extract_embedded_json_rows(text, self.source["embedded_json"])
+                else:
+                    rows = self._extract_html_rows(text)
                 records.extend(rows)
                 log(f"  page {page}: +{len(rows)}（累计 {len(records)}）")
                 nxt = pagination.get("next_selector") or pagination.get("next_xpath")
@@ -423,6 +427,7 @@ class BrowserFetcher(BaseFetcher):
 
             cmd = [NODE, str(self.bridge), "--spec", str(spec_file), "--out", str(out_dir),
                    "--maxPages", str(max_pages), "--settle", str(settle),
+                   "--startPage", str(int(pagination.get("start", 1))),
                    "--captchaDir", str(cap_dir),
                    "--storageState", storage_state,
                    "--scrollCount", str(self.source.get("scroll_count", 0)),
@@ -458,7 +463,11 @@ class BrowserFetcher(BaseFetcher):
                                        seq=obj.get("seq", 0))
                 elif t == "page":
                     html = Path(obj["file"]).read_text(encoding="utf-8", errors="replace")
-                    rows = self._extract(html)
+                    if self.source.get("embedded_json"):
+                        from .selectors import extract_embedded_json_rows
+                        rows = extract_embedded_json_rows(html, self.source["embedded_json"])
+                    else:
+                        rows = self._extract(html)
                     records.extend(rows)
                     log(f"  page {obj.get('page')}: +{len(rows)}（累计 {len(records)}）")
                     # 渲染页落盘到任务目录：供失败轮内 LLM 直接抽取/选择器精修用
