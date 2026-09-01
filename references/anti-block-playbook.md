@@ -8,6 +8,7 @@
 |---|---|---|
 | 200 且内容齐全在 HTML 里 | 直接可抓 | L0 |
 | 页面是 JS 应用（有界面壳、数据靠 XHR 拼，如 EUIPO eSearch） | SPA 应用 | **接口捕获（capture_all）优先**，浏览器只留交互 |
+| 返回"Just a moment"/Turnstile 挑战页；headless 也被卡；偶发 ERR_CONNECTION_CLOSED | Cloudflare 类 | 直接 L3：真实调试 Chrome 过一次校验 → 配置 cdp 附加（R16），headless 别硬试 |
 | 403 / 412 / 468 / 503，或正常 UA 也被拒 | WAF 指纹拦截 | L1 |
 | 200 但 body 极短（<2KB），含 `document.location`、`document.write`、`stoken`、`__js_challenge`、`setTimeout(...location...)` 之类脚本壳 | JS 挑战壳 | L1 → L2 |
 | 返回验证码图片 / 滑块 / 点选 | 验证码 | L2 + 识别，失败 L4 |
@@ -86,6 +87,7 @@
 | 抖音话题视频 | 强 JS 壳 + 签名 | 仅浏览器可读部分可见数据；抓不全时如实说明并 L5 |
 | EUIPO eSearch plus | 13KB JS 应用壳，直抓无数据；后端 API 基座活跃（/eSearch/api 返回 200） | 先 capture_all 捕获检索/详情接口 → JSON 直抓；浏览器只留交互（配方 R13） |
 | 东方财富股吧 | SSR 内嵌 JSON（window.article_list）+ em_capt「身份核实」+ 验证 cookie 有请求预算（约140次/会话） | L3 过一次核实拿 wsc_checkuser_ok cookie → 浏览器导航 + embedded_json 直取（配方 R15）；忌 HTTP 批量（会连坐封浏览器会话） |
+| Product Hunt | Cloudflare Turnstile 拦 headless + Next.js 客户端渲染 + 无限滚动；连接重置=风控 | 调试 Chrome 过一次校验 → cdp 附加 → row_css 卡片 + scroll_count 滚动 + detail.extract limit 抓 makers（配方 R16） |
 
 **两条先查表再动手的经验**（能省一个数量级的功夫）：
 

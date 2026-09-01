@@ -8,7 +8,7 @@ description: >
   样本先行确认、0 结果强制诊断。当用户想抓取/采集/爬取/下载网页数据、
   提到爬虫/scraper/crawler/spider/数据采集，或点名 universal-scraper 时使用。
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   source_project: "universal-scraper (10 轮审计, 164 测试)"
 ---
 
@@ -124,6 +124,20 @@ PYTHONPATH="${SKILL_DIR}" python3 -m universal_scraper.cli fetch "<URL>" --out "
 一页 → 读任务目录 `capture_all.json` → 找到含目标数据的接口和字段路径 → 改走轻量
 JSON 直抓（配方 R8/R13）。浏览器渲染只留给交互复杂、接口带签名推不开的场景。
 **先接口后浏览器，取数成本差十倍；跳过这一步直接啃 UI 是走远路。**
+
+**任务特征速查表**（判型后对号入座——这些能力都已内建，别临场手写脚本）：
+
+| 页面/任务特征 | 配置能力 | 配方 |
+|---|---|---|
+| 数据在 `<script>` 变量里（window.X 等） | `embedded_json` | R15 |
+| 无限滚动加载 | browser + `scroll_count`/`scroll_wait_ms` | R3 |
+| 点"下一页"翻页 | browser `pagination.type=click` | R2 |
+| 按日期/条件筛选 | `pipeline` filter（regex 可做日期前缀） | R15 |
+| 历史回溯到第 N 页 | `pagination.start` + 深链 URL | R15 |
+| Cloudflare 拦 headless | browser + `"cdp"` 附加调试 Chrome | R16 |
+| 详情页列表字段（makers/标签等） | `detail.extract` + `type:css_attr` + `limit` | R4 |
+| 页码在查询参数/路径 | `page_param` / `next_url` | R1 |
+| 登录后才能看 | L3 调试 Chrome 登录一次 → cdp 或 cookie 复用 | R7 |
 
 侦察同时确认：列表页长什么样、翻页方式（页码/下一页按钮/滚动加载/无翻页）、
 有没有现成精配（`sites` 命令查：豆瓣/当当/期刊/点评等已内置）。

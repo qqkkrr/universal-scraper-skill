@@ -176,6 +176,21 @@ URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不�
 
 相对链接用 `url_transform` 补前缀；`max_pages: 0` 表示全部。
 
+`extract` 每项支持五种 `type`（配 `limit` 可抓列表字段，多条换行连接）：
+
+```json
+[
+  {"name": "正文",   "type": "css_text",  "selector": "div.article"},
+  {"name": "makers", "type": "css_attr",  "selector": "a[href^='/@']", "attr": "href"},
+  {"name": "页面链接", "type": "css_html", "selector": "div.meta"},
+  {"name": "标题",   "type": "xpath_text", "xpath": "//h1"},
+  {"name": "发布时间", "type": "json",     "path": "meta.publish_time"}
+]
+```
+
+`limit: 0`（默认）表示全部匹配；注意选择器口径——列表选择器太宽会把无关元素
+（如 upvoter/评论者）混进来。
+
 ## anti_bot 常用键
 
 | 键 | 作用 |

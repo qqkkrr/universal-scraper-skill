@@ -202,6 +202,24 @@ monitor  --task <任务包目录> --every 300 --key url
 HTTP 批量爆发不仅自身被封，还会**反噬正在工作的浏览器会话**（IP 连坐）。
 历史采集全程用浏览器导航，克制、单线程、必要时分时段。
 
+## R16 · Cloudflare / Next.js SPA（Product Hunt 类，headless 必被卡）
+
+特征：`fetch` 直抓返回"Just a moment"/挑战页；`fetch --browser` headless 也被卡；
+偶发 `ERR_CONNECTION_CLOSED`（连接重置也是风控表现，别反复硬试同一通道）。
+正确打法：
+
+1. **别跟 headless 较劲**——Cloudflare 指纹检测能识别自动化浏览器，升级阶梯
+   直接跳到 L3：`bash "${SKILL_DIR}/scripts/open-debug-chrome.sh" "<目标URL>"`
+   （真实 Chrome 人工过一次校验，端口 9222 保持开着，跨任务可复用）。
+2. **配置 browser 型 + `"cdp": "http://127.0.0.1:9222"`** 附加该实例——之后的
+   row_css 卡片提取、`scroll_count` 滚动加载、`pagination.type=click` 全部照常
+   配置化（无限滚动用 R3，DOM 卡片选择器从"检查元素"里抄）。
+3. **详情页列表字段**（如 PH 的 makers）：`detail.extract` 用
+   `{"name": "makers", "type": "css_attr", "selector": "a[href^='/@']", "attr": "href"}`
+   ——`limit` 缺省抓全部，多条换行连接；注意选择器口径，别把 upvoter 混进来。
+4. **数据若在接口里**：附加成功后先跑一次 `capture: true` + actions 等待，
+   Next.js 的 `__next_f` flight 数据有时能从接口/脚本里直接拿到，能直抓就不爬 UI。
+
 ## 交付前必做
 
 ```bash

@@ -31,11 +31,24 @@ def check_cli() -> list:
         return [{"item": "CLI 可加载", "ok": False, "hint": str(e)[:120]}]
 
 
+def check_cdp() -> list:
+    """9222 调试 Chrome 活性：已开着就提示复用（跨任务共享登录态），没开不算失败。"""
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:9222/json/version", timeout=2) as r:
+            if r.status == 200:
+                return [{"item": "调试 Chrome (9222)", "ok": True, "hint": "运行中——配置 cdp 可直接复用"}]
+    except Exception:
+        pass
+    return [{"item": "调试 Chrome (9222)", "ok": True,
+             "hint": "未运行（需要登录态/L3 时跑 open-debug-chrome.sh）"}]
+
+
 def main() -> int:
     groups = [
         ("Python 依赖", check_deps()),
         ("Node 与浏览器引擎", check_node() + check_browsers()),
-        ("技能完整性", check_bridges() + check_cli()),
+        ("技能完整性", check_bridges() + check_cli() + check_cdp()),
     ]
     total = ok_n = 0
     print("🩺 万能爬虫技能 · 环境体检")
