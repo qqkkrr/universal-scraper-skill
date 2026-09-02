@@ -8,7 +8,7 @@ description: >
   样本先行确认、0 结果强制诊断。当用户想抓取/采集/爬取/下载网页数据、
   提到爬虫/scraper/crawler/spider/数据采集，或点名 universal-scraper 时使用。
 metadata:
-  version: "1.4.0"
+  version: "1.5.0"
   source_project: "universal-scraper (10 轮审计, 164 测试)"
 ---
 
@@ -49,6 +49,8 @@ PYTHONPATH="${SKILL_DIR}" python3 -m universal_scraper.cli <子命令> [参数]
 
 **五条铁律在两种模式下同样生效**——模式 B 只是省掉话术，不是省掉纪律：
 0 结果必须诊断、样本必须先于全量、合规红线、交付必须复核，一条都不能少。
+**需求内部矛盾且无法询问时**（如期号与日期对不上、口径二义）：抓超集（两种理解
+都采），并在交付报告里显式说明差异——不许擅自替用户二选一，也不许因此卡住不交付。
 
 ## 对话语气（说人话）【模式 A】
 
@@ -124,6 +126,9 @@ PYTHONPATH="${SKILL_DIR}" python3 -m universal_scraper.cli fetch "<URL>" --out "
 一页 → 读任务目录 `capture_all.json` → 找到含目标数据的接口和字段路径 → 改走轻量
 JSON 直抓（配方 R8/R13）。浏览器渲染只留给交互复杂、接口带签名推不开的场景。
 **先接口后浏览器，取数成本差十倍；跳过这一步直接啃 UI 是走远路。**
+**已知公开 API 的平台（B站/GitHub/知乎/NPM 等头部站）再进一步**：直接带
+UA/Referer/必要 cookie（先 GET 主页预热拿风控 cookie）探测已知端点，命中就用
+`http_json` 直抓——浏览器 capture 只留给"猜不到接口"的站，别为已知 API 开浏览器。
 
 **任务特征速查表**（判型后对号入座——这些能力都已内建，别临场手写脚本）：
 

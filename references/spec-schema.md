@@ -65,6 +65,10 @@ URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不�
 }
 ```
 
+⚠️ **必须**在 pagination 里写 `records_path`（JSON 里列表数据所在的点路径，如
+`"data.list"`），否则抓到响应也提不出记录（page +0）。`record.fields` 的 `from`
+支持 jpath 点路径取嵌套值：`{"UP主": {"from": "owner.name"}}`。
+
 **browser** — JS 渲染/交互（L2/L3）：
 
 ```json
@@ -158,6 +162,11 @@ URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不�
 - `dedup`：按 `key`（单字段或字段数组）去重。
 - `rename`：`mapping` 字典批量改列名；`cast`：`to` 取 int/float/str（自动去千分位）；
   `add`：`field`+`value` 加常量列。
+- `transform`：字段变换，`op` 取 `unix_to_datetime`（秒/毫秒时间戳自适应转
+  `fmt` 格式，默认 `%Y-%m-%d %H:%M:%S`）/ `upper` / `lower`：
+  `{"type":"transform","field":"pubdate","op":"unix_to_datetime"}`。
+- `template`：用已有字段拼新字段，`tmpl` 里 `{字段名}` 占位：
+  `{"type":"template","field":"视频链接","tmpl":"https://www.bilibili.com/video/{bvid}"}`。
 
 ## detail（列表 → 详情两级）
 
@@ -202,7 +211,7 @@ URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不�
 | `proxy` / `proxies` / `proxies_file` / `proxy_mode` | 代理 |
 | `timeout` | 请求超时秒 |
 | `headers` / `rotate_ua` | 请求头 / UA 轮换 |
-| `cookies` / `cookie_mode` / `cookie_domain` | Cookie 直抓（`cookies` 命令导出的串） |
+| `cookies` / `cookie_mode` / `cookie_domain` | Cookie 直抓。**dict 或串均可**：`{"SESSID": "x"}` 或 `"SESSID=x; OTHER=y"`（`cookies` 命令导出的串可直接粘贴） |
 | `respect_robots` | 尊重 robots.txt |
 | `captcha` / `session_dir` / `session_name` | 验证码与登录态存放 |
 

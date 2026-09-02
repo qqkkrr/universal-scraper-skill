@@ -88,6 +88,7 @@
 | EUIPO eSearch plus | 13KB JS 应用壳，直抓无数据；后端 API 基座活跃（/eSearch/api 返回 200） | 先 capture_all 捕获检索/详情接口 → JSON 直抓；浏览器只留交互（配方 R13） |
 | 东方财富股吧 | SSR 内嵌 JSON（window.article_list）+ em_capt「身份核实」+ 验证 cookie 有请求预算（约140次/会话） | L3 过一次核实拿 wsc_checkuser_ok cookie → 浏览器导航 + embedded_json 直取（配方 R15）；忌 HTTP 批量（会连坐封浏览器会话） |
 | Product Hunt | Cloudflare Turnstile 拦 headless + Next.js 客户端渲染 + 无限滚动；连接重置=风控 | 调试 Chrome 过一次校验 → cdp 附加 → row_css 卡片 + scroll_count 滚动 + detail.extract limit 抓 makers（配方 R16） |
+| B站 API | 直接调接口返回 -352 风控码 | 先 GET 一次 www.bilibili.com 主页拿 buvid cookie，把 cookie **串**填进 `anti_bot.cookies`，并**固定 UA**（`"rotate_ua": false`，与预热时一致——UA 漂移会再触发 -352）；带 Referer 调 api.bilibili.com 公开接口（每周必看 `popular/series/one?number=期号`、热门 `popular` 均有现成端点） |
 
 **两条先查表再动手的经验**（能省一个数量级的功夫）：
 
