@@ -167,6 +167,9 @@ URL 里可以用 `vars` 定义的变量（如 `?q={{keyword}}`）；**页码不�
   `{"type":"transform","field":"pubdate","op":"unix_to_datetime"}`。
 - `template`：用已有字段拼新字段，`tmpl` 里 `{字段名}` 占位：
   `{"type":"template","field":"视频链接","tmpl":"https://www.bilibili.com/video/{bvid}"}`。
+- **仅 v3 任务包（`run --task`）支持的类型**：`parse_date`、`split`、`default`、
+  `download`、`validate`、`dedup_content`——这些在 `run --config` 执行器中未实现，
+  validate 会给出警告且运行时跳过。词表唯一来源见 `universal_scraper/contract.py`。
 
 ## detail（列表 → 详情两级）
 

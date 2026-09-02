@@ -34,18 +34,24 @@
 
 ## R2 · 点"下一页"按钮的列表
 
-`source.type` 换 `browser`，翻页写进 source：
+`source.type` 用 `browser`，翻页写进 source（完整配置示例）：
 
 ```json
-"source": {
-  "type": "browser",
-  "url": "https://example.com/list",
-  "wait": {"selector": ".item", "timeout": 20000},
-  "row_css": ".item",
-  "fields": {"标题": {"css": ".t"}},
-  "pagination": {"type": "click", "selector": "a.next", "wait_ms": 1500}
-},
-"pagination": {"strategy": "none", "max_pages": 30}
+{
+  "name": "点击翻页列表",
+  "source": {
+    "type": "browser",
+    "url": "https://example.com/list",
+    "wait": {"selector": ".item", "timeout": 20000},
+    "row_css": ".item",
+    "fields": {"标题": {"css": ".t"}},
+    "pagination": {"type": "click", "selector": "a.next", "wait_ms": 1500}
+  },
+  "pagination": {"strategy": "none", "max_pages": 30},
+  "record": {"fields": {"标题": {"from": "标题"}}},
+  "output": {"dir": "<任务目录>", "base_name": "list", "formats": ["csv", "xlsx"]},
+  "anti_bot": {"min_interval": 1.0, "max_retries": 3}
+}
 ```
 
 ## R3 · 无限滚动列表
