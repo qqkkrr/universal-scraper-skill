@@ -44,11 +44,38 @@ def check_cdp() -> list:
              "hint": "未运行（需要登录态/L3 时跑 open-debug-chrome.sh）"}]
 
 
+def check_netlink() -> list:
+    """网络链路体检（科研管理战役 2026-09 战训）：
+    1) 真实出口 IP（换网络后确认）
+    2) 系统代理劫持（Clash 等开着时"直连"其实是代理节点出口——烧错配额/换IP无效的元凶）
+    3) 电源模式（无人值守长跑必须接电，电池下 caffeinate 无效）
+    全部为"提示级"：不阻塞任务，只在有风险时给警告。"""
+    from universal_scraper.net import detect_ip, detect_system_proxy, power_source
+    out = []
+    d = detect_ip()
+    out.append({"item": f"出口 IP（{d.get('ip','?')} {d.get('city','')}）",
+                "ok": not d.get("error"),
+                "hint": "" if not d.get("error") else str(d.get("error"))[:80]})
+    sp = detect_system_proxy()
+    if sp.get("enabled") or sp.get("processes"):
+        out.append({"item": f"系统代理已开启（{', '.join(sp['sources']) or '本机进程'}）",
+                    "ok": True,  # 提示级：不算失败
+                    "hint": "直连请求可能被劫持！配额诊断前先确认真实出口，必要时关系统代理"})
+    else:
+        out.append({"item": "系统代理未检出（直连出口可信）", "ok": True, "hint": ""})
+    pw = power_source()
+    if pw.get("source") == "BATT":
+        out.append({"item": "电源：电池模式", "ok": True,
+                    "hint": "无人值守长跑请接电源（电池下 caffeinate 防睡眠无效）"})
+    return out
+
+
 def main() -> int:
     groups = [
         ("Python 依赖", check_deps()),
         ("Node 与浏览器引擎", check_node() + check_browsers()),
         ("技能完整性", check_bridges() + check_cli() + check_cdp()),
+        ("网络链路（战训新增）", check_netlink()),
     ]
     total = ok_n = 0
     print("🩺 万能爬虫技能 · 环境体检")
