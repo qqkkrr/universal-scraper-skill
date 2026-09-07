@@ -295,9 +295,37 @@ function centerCaptcha(page) {
       page = context.pages()[0] || await context.newPage();
       if (arg("headless", "0") === "0") focusWindowMac();  // 有头：窗口居中放大
     } else {
-      browser = await chromium.launch({ headless, executablePath: EXE, args: ["--no-sandbox", "--ignore-certificate-errors"] });
-      context = await browser.newContext(ctxOpts);
-      page = await context.newPage();
+      // batch1401 战训：headless-shell 缺失时池直接崩，而 9222 调试 Chrome 往往可用。
+      // 启动失败 → 自动探测本机 9222 CDP，活着就降级附加（真实浏览器反而更稳）。
+      try {
+        browser = await chromium.launch({ headless, executablePath: EXE, args: ["--no-sandbox", "--ignore-certificate-errors"] });
+        context = await browser.newContext(ctxOpts);
+        page = await context.newPage();
+      } catch (launchErr) {
+        const fallbackCdp = "http://127.0.0.1:9222";
+        let fbOk = false;
+        try {
+          const http = require("http");
+          fbOk = await new Promise((resolve) => {
+            const req = http.get(fallbackCdp + "/json/version", { timeout: 2500 }, (r) => resolve(r.statusCode === 200));
+            req.on("error", () => resolve(false));
+            req.on("timeout", () => { req.destroy(); resolve(false); });
+          });
+        } catch (e) {}
+        if (fbOk) {
+          out({ type: "diag", message: "浏览器启动失败(" + String(launchErr.message || launchErr).slice(0, 120) + ") → 降级连接 9222 调试 Chrome" });
+          try {
+            browser = await chromium.connectOverCDP(fallbackCdp, { timeout: 15000 });
+            context = browser.contexts()[0] || await browser.newContext();
+            page = await context.newPage();
+            ownPages.push(page);
+          } catch (e2) {
+            throw launchErr;  // 降级也失败：抛原始启动错误（诊断信息更准）
+          }
+        } else {
+          throw launchErr;
+        }
+      }
     }
     // 控制台/页面错误捕获（诊断"页面为什么没加载数据"的关键）
     // 节流：每类最多输出 50 条，防止 JS 重页面刷爆协议流
@@ -374,7 +402,19 @@ function centerCaptcha(page) {
           const r2 = await jsonMaybe(res);
           const arr = (capturedBy[key] = capturedBy[key] || []);
           if (arr.length < 5000) {  // 命名捕获上限，防长任务内存爆炸
-            arr.push(r2.json !== undefined ? { url: u, json: r2.json } : { url: u, raw: r2.raw });
+            // 声明式捕获同样落盘 method/请求体（batch1401 战训：chinamoney/xkz/NAFMII
+            // 三次"接口捕到、参数拿不到"都栽在这里——没有 post_data 就无法改写 http_json 配置）
+            let _pd = "", _m = "GET", _ct = "";
+            try {
+              const rq = res.request();
+              _m = rq.method();
+              _pd = rq.postData() || "";
+              _ct = (rq.headers() || {})["content-type"] || "";
+            } catch (e) {}
+            const rec = { url: u, method: _m,
+                          post_data: _pd || undefined, request_content_type: _ct || undefined };
+            arr.push(r2.json !== undefined ? Object.assign(rec, { json: r2.json })
+                                            : Object.assign(rec, { raw: r2.raw }));
           }
           if (c.save && arr.length % (c.save_every || 5) === 0) {
             const f = path.join(outDir, `${key}.json`);
@@ -710,75 +750,6 @@ function centerCaptcha(page) {
           out({ type: "diag", message: `actions[${ai}] ${a.type} 失败: ${String(e.message).slice(0, 120)}` });
         }
       }
-    }
-
-    // ===== spec.pdf_batch：登录态 PDF 批量抓取（盒马/科研管理战例）——
-    // 在页面自身上下文发请求（自带会话 cookie 与 referer），不逆向任何签名。
-    // 每项 {id, article_url}；连续 blocked 超阈值即停（登录态失效信号）。
-    if (Array.isArray(spec.pdf_batch) && spec.pdf_batch.length) {
-      const base = spec.base_url || "";
-      const api = spec.pdf_api || "/CN/article/showArticleFile.do";
-      const waitMs = spec.pdf_wait_ms || 500;
-      let ok = 0, consecBlocked = 0;
-      for (const [i, it] of spec.pdf_batch.entries()) {
-        try {
-          // 若当前不在目标站，先回到站点首页建立 referer/会话
-          if (!page.url().startsWith(base)) {
-            await page.goto(base + "/", { timeout: 45000, waitUntil: "domcontentloaded" });
-            await sleep(800);
-          }
-          const r = await page.evaluate(async ({ api, id }) => {
-            const res = await fetch(api + "?" + Date.now(), {
-              method: "POST", credentials: "include",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: `attachType=PDF&id=${id}&json=true`,
-            });
-            const t = await res.text();
-            const m = t.match(/\[json\]([\s\S]*)/);
-            if (!m) return { err: "no-json(len=" + t.length + ")" };
-            const j = JSON.parse(m[1]);
-            if (j.status !== 1) return { err: "blocked:" + (j.msg || j.status) };
-            const pdfUrl = j.pdfUrl || j.pdfCnUrl;
-            if (!pdfUrl) return { err: "blocked:no-pdf-url" };
-            const pr = await fetch(pdfUrl, { credentials: "include" });
-            const buf = await pr.arrayBuffer();
-            const bytes = new Uint8Array(buf);
-            let bin = "";
-            const chunk = 0x8000;
-            for (let k = 0; k < bytes.length; k += chunk) {
-              bin += String.fromCharCode.apply(null, bytes.subarray(k, k + chunk));
-            }
-            return { b64: btoa(bin), size: bytes.length, head: String.fromCharCode.apply(null, bytes.subarray(0, 4)) };
-          }, { api: base + api, id: it.id });
-          if (r.err) {
-            consecBlocked++;
-            out({ type: "pdf_skip", id: it.id, reason: String(r.err).slice(0, 140) });
-            if (consecBlocked >= (spec.pdf_block_limit || 15)) {
-              out({ type: "error", message: `连续 ${consecBlocked} 篇登录墙且无成功——登录态疑似失效，停止（已成功 ${ok} 篇）` });
-              break;
-            }
-          } else if (r.head && r.head.startsWith("%PDF")) {
-            consecBlocked = 0;
-            const f = path.join(outDir, `pdf_${it.id}.pdf`);
-            fs.writeFileSync(f, Buffer.from(r.b64, "base64"));
-            ok++;
-            out({ type: "pdf_done", id: it.id, file: f, size: r.size });
-          } else {
-            consecBlocked++;
-            out({ type: "pdf_skip", id: it.id, reason: "非PDF内容: " + String(r.head || "").slice(0, 40) });
-          }
-          if ((i + 1) % 20 === 0) {
-            out({ type: "diag", message: `pdf_batch 进度 ${i + 1}/${spec.pdf_batch.length}（成功 ${ok}）` });
-          }
-          await sleep(waitMs);
-        } catch (e) {
-          out({ type: "pdf_skip", id: it.id, reason: String(e.message).slice(0, 140) });
-          await sleep(1000);
-        }
-      }
-      out({ type: "done", pdfs: ok, total: spec.pdf_batch.length });
-      setTimeout(() => { try { process.exit(0); } catch (e) {} }, 8000).unref();
-      return;
     }
 
     // ===== spec.urls：批量详情模式（#2 详情 browser 后端）——单连接顺序导航，一页一存 =====
