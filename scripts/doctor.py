@@ -67,6 +67,17 @@ def check_netlink() -> list:
     if pw.get("source") == "BATT":
         out.append({"item": "电源：电池模式", "ok": True,
                     "hint": "无人值守长跑请接电源（电池下 caffeinate 防睡眠无效）"})
+    # batch1600 战训：显示当前处于封锁期的域名（HTTP 客户端 403/421/52x 自动记账）
+    try:
+        from universal_scraper.domain_budget import listing
+        blocked = {d: v for d, v in listing().items() if v.get("in_cooldown")}
+        if blocked:
+            items = ", ".join(f"{d}(剩{v['remaining_sec']//3600}h)" for d, v in
+                              sorted(blocked.items(), key=lambda kv: -kv[1]["remaining_sec"])[:5])
+            out.append({"item": f"封锁期域名 {len(blocked)} 个", "ok": True,
+                        "hint": f"{items} —— 这些站先冷却，别硬刚（budget --list 看详情）"})
+    except Exception:
+        pass
     return out
 
 

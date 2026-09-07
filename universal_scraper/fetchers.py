@@ -500,85 +500,6 @@ class BrowserFetcher(BaseFetcher):
                 die(f"详情批抓桥退出码 {rc}: {err[-300:]}")
             return pages
 
-    def fetch_pdfs_batch(self, items: List[Dict[str, str]], out_dir: Path,
-                         base_url: str, pdf_api: str = "/CN/article/showArticleFile.do",
-                         wait_ms: int = 500, block_limit: int = 15) -> Dict[str, Any]:
-        """登录态 PDF 批量抓取（科研管理战例）：CDP 附加后，在页面自身上下文发
-        showArticleFile 请求（自带会话 cookie，不逆向签名）。断点续传：已存在跳过。
-        返回 {ok: [文件路径], blocked: [id], done: bool}。done=False 表示登录态失效提前停。"""
-        import tempfile
-        out_dir = Path(out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        # 断点续传：已存在的 id 跳过
-        todo = []
-        for it in items:
-            target = out_dir / f"pdf_{it['id']}.pdf"
-            if not (target.exists() and target.stat().st_size > 10 * 1024):
-                todo.append(it)
-        skipped = len(items) - len(todo)
-        if not todo:
-            return {"ok": [], "blocked": [], "skipped": skipped, "done": True}
-        spec = self._build_spec()
-        spec["url"] = base_url + "/"
-        spec["base_url"] = base_url
-        spec["pdf_api"] = pdf_api
-        spec["pdf_batch"] = todo
-        spec["pdf_wait_ms"] = wait_ms
-        spec["pdf_block_limit"] = block_limit
-        with tempfile.TemporaryDirectory(prefix="us_pdf_") as tmp:
-            spec_file = Path(tmp) / "spec.json"
-            out_dir_b = Path(tmp) / "pdfs"
-            spec_file.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
-            session_dir = Path(self.anti.get("session_dir") or "/tmp/universal_scraper_session")
-            session_dir.mkdir(parents=True, exist_ok=True)
-            storage_state = str(session_dir / f"{self.anti.get('session_name', 'session')}.json")
-            cmd = [NODE, str(self.bridge), "--spec", str(spec_file), "--out", str(out_dir_b),
-                   "--maxPages", "1", "--settle", "1000",
-                   "--captchaDir", "/tmp/universal_scraper_captcha",
-                   "--storageState", storage_state,
-                   "--loginTimeout", "600000",
-                   "--headless", "0" if self.source.get("headless") is False else "1"]
-            if self.source.get("cdp"):
-                cmd += ["--cdp", str(self.source["cdp"])]
-            env = dict(os.environ)
-            env["NODE_PATH"] = NODE_PATH
-            proc, errbuf = _spawn_bridge(cmd, env)
-            assert proc.stdout is not None
-            ok_files: List[str] = []
-            blocked: List[str] = []
-            done_flag = True
-            for line in proc.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                t = obj.get("type")
-                if t == "pdf_done":
-                    src = Path(obj["file"])
-                    dst = out_dir / f"pdf_{obj['id']}.pdf"
-                    dst.write_bytes(src.read_bytes())
-                    ok_files.append(str(dst))
-                    log(f"  PDF {obj['id']}: {obj.get('size', 0)//1024}KB ✓")
-                elif t == "pdf_skip":
-                    blocked.append(str(obj.get("id")))
-                    reason = str(obj.get("reason", ""))
-                    if "登录" in reason or "blocked:" in reason:
-                        log(f"  PDF {obj.get('id')}: 登录墙/无权限（{reason[:60]}）")
-                elif t == "error":
-                    msg = str(obj.get("message", ""))
-                    log(f"  ⚠️ {msg[:120]}")
-                    if "登录态疑似失效" in msg:
-                        done_flag = False
-                elif t == "diag":
-                    log(f"  {obj.get('message', '')[:100]}")
-            rc, err = _wait_bridge(proc, errbuf)
-            if rc != 0 and not ok_files:
-                log(f"  桥退出码 {rc}: {err[-200:]}", "WARN")
-        return {"ok": ok_files, "blocked": blocked, "skipped": skipped, "done": done_flag}
-
     def _build_spec(self, urls: Any = None) -> Dict[str, Any]:
         s = self.source
         spec = {
@@ -751,7 +672,10 @@ class BrowserFetcher(BaseFetcher):
 
     def _records_from_capture_all(self, out_dir: Path) -> List[Dict[str, Any]]:
         """从 capture_all.json（浏览器自动捕获的所有 JSON 响应）生成记录。
-        每条记录 = {_api_url, data}，交给 LLM/解析器事后挑字段。"""
+        每条记录 = {_api_url, data}，交给 LLM/解析器事后挑字段。
+        batch1600 战训（P0）：桥侧早已落盘 method/post_data（改写 http_json 配置的
+        关键参数），Python 侧此前转记录时丢弃——现已透传 _method/_post_data/
+        _request_content_type，去重键同步纳入请求体（同 URL 不同体的 POST 不再误并）。"""
         f = out_dir / "capture_all.json"
         if not f.exists():
             return []
@@ -763,12 +687,21 @@ class BrowserFetcher(BaseFetcher):
         for item in data:
             if not isinstance(item, dict):
                 continue
-            recs.append({"_api_url": item.get("url", ""), "data": item.get("json")})
-        # 去重（同一接口多次响应）
+            rec = {"_api_url": item.get("url", ""), "data": item.get("json")}
+            if item.get("method"):
+                rec["_method"] = item["method"]
+            if item.get("post_data"):
+                rec["_post_data"] = item["post_data"]
+            if item.get("request_content_type"):
+                rec["_request_content_type"] = item["request_content_type"]
+            recs.append(rec)
+        # 去重（同一接口多次响应；POST 同 URL 不同请求体视为不同记录）
         seen = set()
         out = []
         for r in recs:
-            k = str(r.get("_api_url", "")) + ":" + json.dumps(r.get("data"), ensure_ascii=False)[:200]
+            k = (str(r.get("_api_url", "")) + ":" + str(r.get("_method", "GET")) + ":"
+                 + str(r.get("_post_data", ""))[:200] + ":"
+                 + json.dumps(r.get("data"), ensure_ascii=False)[:200])
             if k in seen:
                 continue
             seen.add(k)
