@@ -179,7 +179,7 @@ json_body 里的 `{{page}}`/`{{offset}}` 每页自动替换（dict/list 同样�
   按 `(页-1)*limit` 递增。
 - `next_url`：路径式翻页（`/page/2/`）用这个——解析每页"下一页"链接并跟随，
   相对链接自动补全：
-  `{"strategy":"next_url","next_selector":"li.next a","max_pages":50}`
+  `{"strategy":"【已移除】next_url（从未实现，请用 template）","next_selector":"li.next a","max_pages":50}`
   （也可用 `next_xpath`）。
 - `none`：只抓一页。
 - browser 型翻页写在 `source.pagination`：
