@@ -40,10 +40,8 @@ def resolve_node_path() -> str:
     env = os.environ.get("UNIVERSAL_SCRAPER_NODE_PATH", "").strip()
     if env and Path(env).exists():
         return env
-    # 技能自包含布局：包父目录（技能根）下的 node_modules 优先
-    _skill_mods = Path(__file__).resolve().parent.parent / "node_modules"
     exe = Path(sys.executable).resolve()
-    for cand in (_skill_mods, exe.parent / "node_modules", exe.parent.parent / "node_modules",
+    for cand in (exe.parent / "node_modules", exe.parent.parent / "node_modules",
                  exe.parent.parent / "node" / "node_modules"):
         if cand.exists():
             return str(cand)

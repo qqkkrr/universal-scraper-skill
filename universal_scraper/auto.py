@@ -2298,7 +2298,7 @@ def auto_task(description: str, limit: Optional[int] = None, rounds: int = 2,
         # 🛡️ 反爬/验证拦截 → 确定性自动升级浏览器模式（不靠 LLM 猜）
         # 覆盖 waf/cloudflare/verify/captcha/anti_bot/rate_limit 等：http 硬刚只会一直 0 条
         _blk = (result or {}).get("block_stats") or {}
-        _BLOCK_UPGRADE_KINDS = ("waf", "cloudflare", "verify", "captcha", "anti_bot", "rate_limit", "session_flagged")
+        _BLOCK_UPGRADE_KINDS = ("waf", "cloudflare", "verify", "captcha", "anti_bot", "rate_limit")
         _any_block = any(_blk.get(k) for k in _BLOCK_UPGRADE_KINDS)
         if _any_block and ((cfg.get("source") or {}).get("type") == "http"):
             log("🛡️ 检测到反爬拦截（" + "、".join(f"{k}×{_blk[k]}" for k in _BLOCK_UPGRADE_KINDS if _blk.get(k))
